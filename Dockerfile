@@ -1,4 +1,4 @@
-FROM node:18-alpine AS builder
+FROM node:18-alpine
 
 WORKDIR /app
 
@@ -9,16 +9,6 @@ COPY client/ ./client/
 RUN npm install
 RUN cd server && npm install
 RUN cd client && npm install && npm run build
-
-# Production stage
-FROM node:18-alpine
-
-WORKDIR /app
-
-# Static export outputs to client/out/
-COPY --from=builder /app/client/out ./public
-COPY --from=builder /app/server ./server
-COPY --from=builder /app/package.json ./
 
 RUN mkdir -p /app/data
 
