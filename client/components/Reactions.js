@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 const REACTIONS = [
   { emoji: '❤️', label: 'قلب' },
@@ -37,7 +37,7 @@ export default function Reactions({ socket, roomId, user }) {
     };
   }, [socket]);
 
-  const handleReaction = (emoji) => {
+  const handleReactionClick = useCallback((emoji) => {
     if (!socket || !user) return;
 
     socket.emit('reaction', { roomId, emoji });
@@ -51,7 +51,7 @@ export default function Reactions({ socket, roomId, user }) {
     setTimeout(() => {
       setFloatingReactions((prev) => prev.filter((r) => r.id !== id));
     }, 2000);
-  };
+  }, [socket, user, roomId]);
 
   return (
     <div className="relative">
@@ -73,7 +73,7 @@ export default function Reactions({ socket, roomId, user }) {
         {REACTIONS.map(({ emoji, label }) => (
           <button
             key={emoji}
-            onClick={() => handleReaction(emoji)}
+            onClick={() => handleReactionClick(emoji)}
             className="text-2xl md:text-3xl hover:scale-125 active:scale-95 transition-transform p-2 rounded-lg hover:bg-[#2d2d44]"
             title={label}
             disabled={!user}

@@ -4,6 +4,8 @@ import { useRouter } from 'next/router';
 export default function CreateRoomModal({ user, onClose, onRoomCreated }) {
   const [name, setName] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -17,7 +19,12 @@ export default function CreateRoomModal({ user, onClose, onRoomCreated }) {
       const res = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, video_url: videoUrl }),
+        body: JSON.stringify({ 
+          name, 
+          video_url: videoUrl,
+          is_private: isPrivate,
+          password: isPrivate ? password : undefined
+        }),
       });
 
       const data = await res.json();
@@ -87,6 +94,45 @@ export default function CreateRoomModal({ user, onClose, onRoomCreated }) {
             <p className="text-xs text-gray-500 mt-1">
               از YouTube یا Dailymotion پشتیبانی می‌شود
             </p>
+          </div>
+
+          {/* Privacy Toggle */}
+          <div className="bg-[#0f0f23] border border-[#2d2d44] rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white font-medium">اتاق خصوصی</p>
+                <p className="text-xs text-gray-500 mt-1">فقط افرادی که رمز را دارند می‌توانند وارد شوند</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPrivate(!isPrivate);
+                  if (isPrivate) setPassword('');
+                }}
+                className={`relative w-12 h-6 rounded-full transition-colors ${
+                  isPrivate ? 'bg-[#8b5cf6]' : 'bg-[#2d2d44]'
+                }`}
+              >
+                <span
+                  className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                    isPrivate ? 'right-7' : 'right-1'
+                  }`}
+                />
+              </button>
+            </div>
+            
+            {isPrivate && (
+              <div className="mt-3">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required={isPrivate}
+                  className="w-full bg-[#1a1a2e] border border-[#2d2d44] rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-[#8b5cf6] transition text-sm"
+                  placeholder="رمز عبور اتاق"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 pt-4">

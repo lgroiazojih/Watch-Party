@@ -30,6 +30,8 @@ db.exec(`
     video_url TEXT NOT NULL,
     creator_id INTEGER NOT NULL,
     creator_name TEXT NOT NULL,
+    is_private INTEGER DEFAULT 0,
+    password TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (creator_id) REFERENCES users(id)
   );
@@ -45,6 +47,34 @@ db.exec(`
     FOREIGN KEY (room_id) REFERENCES rooms(id),
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
+
+  CREATE TABLE IF NOT EXISTS room_controls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    granted_by INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (room_id) REFERENCES rooms(id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (granted_by) REFERENCES users(id),
+    UNIQUE(room_id, user_id)
+  );
 `);
+
+// Migration: Add is_private and password columns to existing rooms if missing
+try {
+  const columns = db.prepare("PRAGMA table_info(rooms)").all();
+  const hasIsPrivate = columns.some(c => c.name === 'is_private');
+  const hasPassword = columns.some(c => c.name === 'password');
+  
+  if (!hasIsPrivate) {
+    db.exec("ALTER TABLE rooms ADD COLUMN is_private INTEGER DEFAULT 0");
+  }
+  if (!hasPassword) {
+    db.exec("ALTER TABLE rooms ADD COLUMN password TEXT");
+  }
+} catch (e) {
+  // Migration already done or tables don't exist yet
+}
 
 module.exports = db;
