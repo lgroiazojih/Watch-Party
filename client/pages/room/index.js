@@ -204,7 +204,7 @@ export default function RoomPage() {
   };
 
   const copyInviteLink = () => {
-    const link = `${window.location.origin}/room/${id}`;
+    const link = `${window.location.origin}/room/?id=${id}`;
     navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

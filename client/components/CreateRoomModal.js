@@ -34,7 +34,7 @@ export default function CreateRoomModal({ user, onClose, onRoomCreated }) {
       }
 
       onRoomCreated(data.room);
-      router.push(`/room/${data.room.id}`);
+      router.push(`/room/?id=${data.room.id}`);
     } catch (err) {
       setError(err.message);
     } finally {

@@ -9,7 +9,7 @@ COPY client/ ./client/
 # Install all dependencies at root level
 RUN npm install
 
-# Build the Next.js client
+# Build the Next.js client (static export to client/out/)
 RUN cd client && npm run build
 
 # Create data directory for SQLite
@@ -20,4 +20,4 @@ EXPOSE 3000
 ENV NODE_ENV=production
 ENV PORT=3000
 
-CMD ["npm", "start"]
+CMD ["node", "server/index.js"]

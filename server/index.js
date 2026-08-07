@@ -1,130 +1,133 @@
-const { createServer } = require('http');
-const { parse } = require('url');
-const next = require('next');
 const express = require('express');
+const { createServer } = require('http');
 const { Server } = require('socket.io');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const routes = require('./routes');
 
-const dev = process.env.NODE_ENV !== 'production';
-const hostname = '0.0.0.0';
-const port = parseInt(process.env.PORT, 10) || 3000;
-const clientDir = path.join(__dirname, '../client');
+const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.NODE_ENV === 'production' ? true : 'http://localhost:3000',
+    credentials: true
+  }
+});
 
-const nextApp = next({ dev, hostname, port, dir: clientDir });
-const handle = nextApp.getRequestHandler();
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json());
+app.use(cookieParser());
 
-nextApp.prepare().then(() => {
-  const expressApp = express();
+// API routes
+app.use('/api', routes);
 
-  expressApp.use(cors({ origin: dev ? 'http://localhost:3000' : true, credentials: true }));
-  expressApp.use(express.json());
-  expressApp.use(cookieParser());
+// Serve static files from Next.js export
+const outDir = path.join(__dirname, '../client/out');
+if (fs.existsSync(outDir)) {
+  app.use(express.static(outDir));
+}
 
-  // API routes
-  expressApp.use('/api', routes);
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
 
-  // Next.js handles everything else
-  expressApp.all('*', (req, res) => {
-    const parsedUrl = parse(req.url, true);
-    handle(req, res, parsedUrl);
-  });
+// Fallback to index.html for SPA routing
+app.get('*', (req, res) => {
+  const indexPath = path.join(outDir, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({ error: 'Not found' });
+  }
+});
 
-  const server = createServer(expressApp);
+// Socket.io
+const roomUsers = new Map();
+const roomVideoStates = new Map();
 
-  const io = new Server(server, {
-    cors: {
-      origin: dev ? 'http://localhost:3000' : true,
-      credentials: true
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  socket.on('join-room', (data) => {
+    const { roomId, user } = data;
+    socket.join(roomId);
+    socket.roomId = roomId;
+    socket.user = user;
+
+    if (!roomUsers.has(roomId)) {
+      roomUsers.set(roomId, new Map());
     }
+    roomUsers.get(roomId).set(socket.id, user);
+
+    const users = Array.from(roomUsers.get(roomId).values());
+    io.to(roomId).emit('room-users', users);
+
+    if (roomVideoStates.has(roomId)) {
+      socket.emit('video-state', roomVideoStates.get(roomId));
+    }
+
+    console.log(`${user.username} joined room ${roomId}`);
   });
 
-  // Socket.io
-  const roomUsers = new Map();
-  const roomVideoStates = new Map();
-
-  io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
-
-    socket.on('join-room', (data) => {
-      const { roomId, user } = data;
-      socket.join(roomId);
-      socket.roomId = roomId;
-      socket.user = user;
-
-      if (!roomUsers.has(roomId)) {
-        roomUsers.set(roomId, new Map());
-      }
-      roomUsers.get(roomId).set(socket.id, user);
-
-      const users = Array.from(roomUsers.get(roomId).values());
-      io.to(roomId).emit('room-users', users);
-
-      if (roomVideoStates.has(roomId)) {
-        socket.emit('video-state', roomVideoStates.get(roomId));
-      }
-
-      console.log(`${user.username} joined room ${roomId}`);
-    });
-
-    socket.on('leave-room', (roomId) => {
-      if (socket.roomId) {
-        socket.leave(socket.roomId);
-        if (roomUsers.has(socket.roomId)) {
-          roomUsers.get(socket.roomId).delete(socket.id);
-          const users = Array.from(roomUsers.get(socket.roomId).values());
-          io.to(socket.roomId).emit('room-users', users);
-        }
-        socket.roomId = null;
-        socket.user = null;
-      }
-    });
-
-    socket.on('video-action', (data) => {
-      const { roomId, action, time } = data;
-      roomVideoStates.set(roomId, { action, time, timestamp: Date.now() });
-      socket.to(roomId).emit('video-action', { action, time, user: socket.user });
-    });
-
-    socket.on('chat-message', (data) => {
-      const { roomId, message } = data;
-      io.to(roomId).emit('chat-message', {
-        ...message,
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    socket.on('reaction', (data) => {
-      const { roomId, emoji } = data;
-      io.to(roomId).emit('reaction', {
-        emoji,
-        user: socket.user,
-        id: Date.now()
-      });
-    });
-
-    socket.on('peer-id', (data) => {
-      const { roomId, peerId } = data;
-      socket.to(roomId).emit('peer-connected', {
-        peerId,
-        user: socket.user
-      });
-    });
-
-    socket.on('disconnect', () => {
-      if (socket.roomId && roomUsers.has(socket.roomId)) {
+  socket.on('leave-room', (roomId) => {
+    if (socket.roomId) {
+      socket.leave(socket.roomId);
+      if (roomUsers.has(socket.roomId)) {
         roomUsers.get(socket.roomId).delete(socket.id);
         const users = Array.from(roomUsers.get(socket.roomId).values());
         io.to(socket.roomId).emit('room-users', users);
-        io.to(socket.roomId).emit('peer-disconnected', { user: socket.user });
       }
-      console.log('User disconnected:', socket.id);
+      socket.roomId = null;
+      socket.user = null;
+    }
+  });
+
+  socket.on('video-action', (data) => {
+    const { roomId, action, time } = data;
+    roomVideoStates.set(roomId, { action, time, timestamp: Date.now() });
+    socket.to(roomId).emit('video-action', { action, time, user: socket.user });
+  });
+
+  socket.on('chat-message', (data) => {
+    const { roomId, message } = data;
+    io.to(roomId).emit('chat-message', {
+      ...message,
+      timestamp: new Date().toISOString()
     });
   });
 
-  server.listen(port, hostname, () => {
-    console.log(`> WatchParty ready on http://${hostname}:${port}`);
+  socket.on('reaction', (data) => {
+    const { roomId, emoji } = data;
+    io.to(roomId).emit('reaction', {
+      emoji,
+      user: socket.user,
+      id: Date.now()
+    });
   });
+
+  socket.on('peer-id', (data) => {
+    const { roomId, peerId } = data;
+    socket.to(roomId).emit('peer-connected', {
+      peerId,
+      user: socket.user
+    });
+  });
+
+  socket.on('disconnect', () => {
+    if (socket.roomId && roomUsers.has(socket.roomId)) {
+      roomUsers.get(socket.roomId).delete(socket.id);
+      const users = Array.from(roomUsers.get(socket.roomId).values());
+      io.to(socket.roomId).emit('room-users', users);
+      io.to(socket.roomId).emit('peer-disconnected', { user: socket.user });
+    }
+    console.log('User disconnected:', socket.id);
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`WatchParty server running on port ${PORT}`);
 });

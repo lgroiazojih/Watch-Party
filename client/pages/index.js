@@ -116,7 +116,7 @@ export default function Home() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredRooms.map((room) => (
-            <Link key={room.id} href={`/room/${room.id}`}>
+            <Link key={room.id} href={`/room/?id=${room.id}`}>
               <div className="card p-6 cursor-pointer">
                 <div className="flex items-start justify-between mb-3">
                   <h3 className="text-lg font-bold text-white truncate">{room.name}</h3>
