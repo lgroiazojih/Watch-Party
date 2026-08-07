@@ -11,8 +11,9 @@ const routes = require('./routes');
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = '0.0.0.0';
 const port = parseInt(process.env.PORT, 10) || 3000;
+const clientDir = path.join(__dirname, '../client');
 
-const nextApp = next({ dev, hostname, port });
+const nextApp = next({ dev, hostname, port, dir: clientDir });
 const handle = nextApp.getRequestHandler();
 
 nextApp.prepare().then(() => {

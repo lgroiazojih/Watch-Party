@@ -2,15 +2,17 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy everything
 COPY package.json ./
 COPY server/ ./server/
 COPY client/ ./client/
 
-# Install ALL dependencies at root level (avoids module conflicts)
+# Install all dependencies at root level
 RUN npm install
 
-# Create data directory
+# Build the Next.js client
+RUN cd client && npm run build
+
+# Create data directory for SQLite
 RUN mkdir -p /app/data
 
 EXPOSE 3000
