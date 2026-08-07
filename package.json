@@ -1,0 +1,17 @@
+{
+  "name": "watchparty",
+  "version": "1.0.0",
+  "description": "WatchParty - گروه ویدیو تماشا",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "cd client && npm install && npm run build",
+    "start": "cd server && npm install && node index.js",
+    "postinstall": "cd server && npm install && cd ../client && npm install"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
