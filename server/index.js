@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const routes = require('./routes');
 const { verifyToken } = require('./auth');
 
@@ -20,26 +21,31 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
+// API routes - MUST be before static files
 app.use('/api', routes);
 
-if (process.env.NODE_ENV === 'production') {
-  const clientBuildPath = path.join(__dirname, '../client/.next');
-  app.use(express.static(path.join(__dirname, '../client/.next/static')));
-  app.use(express.static(path.join(__dirname, '../client/public')));
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+// Serve static files from Next.js export
+const publicPath = path.join(__dirname, '../public');
+if (fs.existsSync(publicPath)) {
+  app.use(express.static(publicPath));
 }
 
+// Fallback to index.html for client-side routing
 app.get('*', (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    res.sendFile(path.join(__dirname, '../client/.next/server/pages', req.path === '/' ? 'index.js' : `${req.path}.js`));
+  const indexPath = path.join(publicPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
   } else {
-    res.json({ message: 'WatchParty API is running. Use client for development.' });
+    res.status(404).json({ error: 'Not found' });
   }
 });
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
+// Socket.io
 const roomUsers = new Map();
 const roomVideoStates = new Map();
 
@@ -101,17 +107,6 @@ io.on('connection', (socket) => {
       user: socket.user,
       id: Date.now()
     });
-  });
-
-  // Control access events
-  socket.on('control-granted', (data) => {
-    const { roomId, userId } = data;
-    io.to(roomId).emit('control-updated', { userId, granted: true, grantedBy: socket.user });
-  });
-
-  socket.on('control-revoked', (data) => {
-    const { roomId, userId } = data;
-    io.to(roomId).emit('control-updated', { userId, granted: false, revokedBy: socket.user });
   });
 
   socket.on('peer-id', (data) => {
