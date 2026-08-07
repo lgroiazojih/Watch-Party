@@ -5,16 +5,17 @@ const express = require('express');
 const { Server } = require('socket.io');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const path = require('path');
 const routes = require('./routes');
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = '0.0.0.0';
 const port = parseInt(process.env.PORT, 10) || 3000;
 
-const app = next({ dev, hostname, port });
-const handle = app.getRequestHandler();
+const nextApp = next({ dev, hostname, port });
+const handle = nextApp.getRequestHandler();
 
-app.prepare().then(() => {
+nextApp.prepare().then(() => {
   const expressApp = express();
 
   expressApp.use(cors({ origin: dev ? 'http://localhost:3000' : true, credentials: true }));
@@ -24,12 +25,7 @@ app.prepare().then(() => {
   // API routes
   expressApp.use('/api', routes);
 
-  // Health check
-  expressApp.get('/api/health', (req, res) => {
-    res.json({ status: 'ok' });
-  });
-
-  // Next.js page handling
+  // Next.js handles everything else
   expressApp.all('*', (req, res) => {
     const parsedUrl = parse(req.url, true);
     handle(req, res, parsedUrl);
