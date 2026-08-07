@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const routes = require('./routes');
 const { verifyToken } = require('./auth');
 
@@ -22,22 +23,25 @@ app.use(cookieParser());
 
 app.use('/api', routes);
 
-if (process.env.NODE_ENV === 'production') {
-  const clientBuildPath = path.join(__dirname, '../client/.next');
-  app.use(express.static(path.join(__dirname, '../client/.next/static')));
-  app.use(express.static(path.join(__dirname, '../client/public')));
-}
-
-app.get('*', (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    res.sendFile(path.join(__dirname, '../client/.next/server/pages', req.path === '/' ? 'index.js' : `${req.path}.js`));
-  } else {
-    res.json({ message: 'WatchParty API is running. Use client for development.' });
-  }
+// Health check - must be fast and simple
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Serve static files from public directory
+const publicPath = path.join(__dirname, '../public');
+if (fs.existsSync(publicPath)) {
+  app.use(express.static(publicPath));
+}
+
+// Fallback to index.html for client-side routing (SPA style)
+app.get('*', (req, res) => {
+  const indexPath = path.join(publicPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({ error: 'Not found' });
+  }
 });
 
 const roomUsers = new Map();
